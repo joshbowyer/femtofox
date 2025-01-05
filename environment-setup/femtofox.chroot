@@ -90,6 +90,9 @@ sudo chage -d 0 femto
 usermod -a -G tty femto
 usermod -a -G dialout femto
 
+# fix lgcc link problem
+ln -sf /lib/arm-linux-gnueabihf/libgcc_s.so.1 /usr/lib/libgcc.so
+
 echo "Cleaning up chroot..."
 
 apt clean && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/* && rm -rf /var/tmp/* && find /var/log -type f -exec truncate -s 0 {} + && : > /root/.bash_history && history -c
