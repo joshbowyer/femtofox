@@ -72,7 +72,7 @@ clone_repos() {
 
   # Clone both repos
   clone_with_retries "https://github.com/LuckfoxTECH/luckfox-pico.git" || return 1
-  clone_with_retries "https://github.com/noon92/femtofox.git" || return 1
+  clone_with_retries "https://github.com/joshbowyer/femtofox.git" || return 1
 
   return 0  # Indicate success if all repos cloned
 }
