@@ -16,7 +16,7 @@
 
 /**********SFC**********/
 &sfc {
-	status = "okay";
+	status = "disabled";
 	flash@0 {
 		compatible = "spi-nand";
 		reg = <0>;
@@ -55,9 +55,11 @@
 /* SPI0_M0 */
 &spi0 {
 	status = "okay";
-	spidev@0 {
-		spi-max-frequency = <2000000>;
-	};
+};
+
+/* SPI1_M0 */
+&spi1 {
+	status = "okay";
 };
 
 /**********I2C**********/
