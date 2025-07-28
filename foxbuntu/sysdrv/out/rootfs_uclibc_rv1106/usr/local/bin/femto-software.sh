@@ -147,6 +147,76 @@ package_menu() {
   done
 }
 
+change_meshtastic_repo() {
+  TEMP_FILE="/tmp/meshtastic_repo_choice"
+  if ! dpkg -l | grep -q software-properties-common; then
+    dialog --no-collapse --title "$title" --yesno "\nsoftware-properties-common is required to manage repositories.\n\nInstall it now?" 8 50
+    [ $? -eq 1 ] && return
+    echo "Installing software-properties-common..."
+    output=$(sudo apt update 2>&1 | tee /dev/tty && sudo apt install -y software-properties-common 2>&1 | tee /dev/tty)
+    install_status=$([[ "$output" == *"failed"* ]] && echo 1 || echo 0)
+    if [ $install_status -eq 0 ]; then
+      dialog --no-collapse --colors --title "$title" --msgbox "\Zusoftware-properties-common installed successfully!\Zn\n\nLog:\n$output" 0 0
+    else
+      dialog --no-collapse --colors --title "$title" --msgbox "\ZuFailed to install software-properties-common!\Zn\n\nLog:\n$output" 0 0
+      return
+    fi
+  fi
+
+  CURRENT_PPA=$(grep -r "ppa.launchpad.net/meshtastic" /etc/apt/sources.list.d/ 2>/dev/null)
+  if [ -n "$CURRENT_PPA" ]; then
+    if echo "$CURRENT_PPA" | grep -q "meshtastic/alpha"; then
+      CURRENT_STATUS="Current repository: Alpha"
+    elif echo "$CURRENT_PPA" | grep -q "meshtastic/beta"; then
+      CURRENT_STATUS="Current repository: Beta"
+    else
+      CURRENT_STATUS="Current repository: Unknown Meshtastic PPA"
+    fi
+  else
+    CURRENT_STATUS="No Meshtastic repository configured"
+  fi
+
+  dialog --no-collapse --title "Meshtastic Repository" --menu "$CURRENT_STATUS\n\nSelect the Meshtastic repository to use:" 12 50 2 \
+    1 "Alpha Repository" \
+    2 "Beta Repository" 2> $TEMP_FILE
+  [ $? -eq 1 ] && return
+
+  choice=$(cat $TEMP_FILE)
+
+  case $choice in
+    1)
+      echo "Switching to Meshtastic Alpha repository..."
+      if [ -n "$CURRENT_PPA" ]; then
+        sudo add-apt-repository --remove ppa:meshtastic/alpha -y 2>&1 | tee /dev/tty
+        sudo add-apt-repository --remove ppa:meshtastic/beta -y 2>&1 | tee /dev/tty
+      fi
+      output=$(sudo add-apt-repository ppa:meshtastic/alpha -y 2>&1 | tee /dev/tty)
+      ;;
+    2)
+      echo "Switching to Meshtastic Beta repository..."
+      if [ -n "$CURRENT_PPA" ]; then
+        sudo add-apt-repository --remove ppa:meshtastic/alpha -y 2>&1 | tee /dev/tty
+        sudo add-apt-repository --remove ppa:meshtastic/beta -y 2>&1 | tee /dev/tty
+      fi
+      output=$(sudo add-apt-repository ppa:meshtastic/beta -y 2>&1 | tee /dev/tty)
+      ;;
+    *)
+      dialog --no-collapse --colors --title "$title" --msgbox "\ZuNo selection made. No changes applied.\Zn" 6 40
+      return
+      ;;
+  esac
+
+  echo "Updating package index..."
+  output_update=$(sudo apt update 2>&1 | tee /dev/tty)
+  install_status=$([[ "$output_update" == *"failed"* || "$output" == *"failed"* ]] && echo 1 || echo 0)
+
+  if [ $install_status -eq 0 ]; then
+    dialog --no-collapse --colors --title "$title" --msgbox "\ZuMeshtastic repository updated successfully!\Zn\n\nLog:\n$output\n$output_update" 0 0
+  else
+    dialog --no-collapse --colors --title "$title" --msgbox "\ZuFailed to update Meshtastic repository!\Zn\n\nLog:\n$output\n$output_update" 0 0
+  fi
+}
+
 # generate menu from filenames in /usr/local/bin/packages
 
 while true; do
@@ -155,30 +225,32 @@ while true; do
   index=1
   for file in /usr/local/bin/packages/*.sh; do
     filename=$(basename "$file" .sh)
-    [[ "$filename" == femto_* ]] && continue # skip filenames starting with femto_
+    [[ "$filename" == femto_* ]] && continue
     menu_entries+=("$(/usr/local/bin/packages/"$filename".sh -N)" "$($package_dir/$filename.sh -I && echo "✅ " || echo "❌ ")")
-    ((index++)) # keeping an index to determine menu window height
+    ((index++))
   done
 
-  menu_entries+=(" " "")  # add blank line and "Back to Main Menu" entry
+  menu_entries+=("Change Meshtastic Repository" "")
+  menu_entries+=(" " "")
   menu_entries+=("Back to main menu" "")
-  software_option=$(dialog --no-collapse --cancel-label "Back" --default-item "$software_option" --menu "$title" $((11 + index)) 50 $((index + 3)) "${menu_entries[@]}" 3>&1 1>&2 2>&3)
-  [ $? -eq 1 ] && break # Exit the loop if the user selects "Cancel" or closes the dialog
+  software_option=$(dialog --no-collapse --cancel-label "Back" --default-item "$software_option" --menu "$title" $((12 + index)) 50 $((index + 4)) "${menu_entries[@]}" 3>&1 1>&2 2>&3)
+  [ $? -eq 1 ] && break
     
   case_block="  case \$software_option in"
   index=1
   for file in /usr/local/bin/packages/*.sh; do
     filename=$(basename "$file" .sh)
-    [[ "$filename" == femto_* ]] && continue # skip filenames starting with femto_
+    [[ "$filename" == femto_* ]] && continue
     case_block+="
       \"$(/usr/local/bin/packages/"$filename".sh -N)\") package_intro \"$filename\" ;;"
     ((index++))
   done
 
   case_block+="
+      \"Change Meshtastic Repository\") change_meshtastic_repo ;; # Add new case
       \"Back to main menu\") break ;;
-    esac" #add return to main menu option
-  eval "$case_block" # Execute the generated case statement
+    esac"
+  eval "$case_block"
 done
 
 exit 0
